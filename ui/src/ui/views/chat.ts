@@ -379,6 +379,26 @@ export function renderChat(props: ChatProps) {
               dir=${detectTextDirection(props.draft)}
               ?disabled=${!props.connected}
               @keydown=${(e: KeyboardEvent) => {
+                const target = e.target as HTMLTextAreaElement;
+                if (e.key === "ArrowUp" && target.selectionStart === 0 && target.value === "") {
+                  const history = Array.isArray(props.messages) ? props.messages : [];
+                  for (let i = history.length - 1; i >= 0; i--) {
+                    const normalized = normalizeMessage(history[i]);
+                    if (normalized.role === "user") {
+                      const text = normalized.content
+                        .filter((c) => c.type === "text")
+                        .map((c) => c.text)
+                        .filter(Boolean)
+                        .join("\n");
+                      if (text) {
+                        e.preventDefault();
+                        props.onDraftChange(text);
+                        // Heights are adjusted on next render via ref
+                        return;
+                      }
+                    }
+                  }
+                }
                 if (e.key !== "Enter") {
                   return;
                 }
