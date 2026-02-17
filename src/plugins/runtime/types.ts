@@ -61,6 +61,12 @@ type FormatAgentEnvelope = typeof import("../../auto-reply/envelope.js").formatA
 type FormatInboundEnvelope = typeof import("../../auto-reply/envelope.js").formatInboundEnvelope;
 type ResolveEnvelopeFormatOptions =
   typeof import("../../auto-reply/envelope.js").resolveEnvelopeFormatOptions;
+
+// Agent dispatch types for api.generate plugin
+type CreateReplyDispatcher =
+  typeof import("../../auto-reply/reply/reply-dispatcher.js").createReplyDispatcher;
+type DispatchInboundMessage = typeof import("../../auto-reply/dispatch.js").dispatchInboundMessage;
+
 type ResolveStateDir = typeof import("../../config/paths.js").resolveStateDir;
 type RecordInboundSession = typeof import("../../channels/session.js").recordInboundSession;
 type RecordSessionMetaFromInbound =
@@ -360,5 +366,11 @@ export type PluginRuntime = {
   };
   state: {
     resolveStateDir: ResolveStateDir;
+  };
+  agent: {
+    dispatch: {
+      createReplyDispatcher: CreateReplyDispatcher;
+      dispatchInboundMessage: DispatchInboundMessage;
+    };
   };
 };
