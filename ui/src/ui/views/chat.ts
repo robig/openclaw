@@ -1,6 +1,9 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
+import type { SessionsListResult } from "../types.ts";
+import type { ChatItem, MessageGroup } from "../types/chat-types.ts";
+import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import {
   renderMessageGroup,
   renderReadingIndicatorGroup,
@@ -9,9 +12,6 @@ import {
 import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
-import type { SessionsListResult } from "../types.ts";
-import type { ChatItem, MessageGroup } from "../types/chat-types.ts";
-import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
 import "../components/resizable-divider.ts";
 
@@ -20,6 +20,16 @@ export type CompactionIndicatorStatus = {
   startedAt: number | null;
   completedAt: number | null;
 };
+
+type ChatHistoryState = {
+  isActive: boolean;
+  index: number;
+  originalDraft: string;
+  userMessages: string[];
+};
+
+// WeakMap to store history state per textarea element
+const chatHistoryStates = new WeakMap<HTMLTextAreaElement, ChatHistoryState>();
 
 export type ChatProps = {
   sessionKey: string;
@@ -380,9 +390,13 @@ export function renderChat(props: ChatProps) {
               ?disabled=${!props.connected}
               @keydown=${(e: KeyboardEvent) => {
                 const target = e.target as HTMLTextAreaElement;
-                if (e.key === "ArrowUp" && target.selectionStart === 0 && target.value === "") {
+
+                // Get the last 5 user messages from history
+                const getLastUserMessages = () => {
                   const history = Array.isArray(props.messages) ? props.messages : [];
-                  for (let i = history.length - 1; i >= 0; i--) {
+                  const userMessages: string[] = [];
+
+                  for (let i = history.length - 1; i >= 0 && userMessages.length < 5; i--) {
                     const normalized = normalizeMessage(history[i]);
                     if (normalized.role === "user") {
                       const text = normalized.content
@@ -391,14 +405,90 @@ export function renderChat(props: ChatProps) {
                         .filter(Boolean)
                         .join("\n");
                       if (text) {
-                        e.preventDefault();
-                        props.onDraftChange(text);
-                        // Heights are adjusted on next render via ref
-                        return;
+                        userMessages.push(text);
                       }
                     }
                   }
+
+                  return userMessages;
+                };
+
+                // Access history state from WeakMap with default values
+                let historyState = chatHistoryStates.get(target);
+                if (!historyState) {
+                  historyState = {
+                    isActive: false,
+                    index: -1,
+                    originalDraft: "",
+                    userMessages: [],
+                  };
+                  chatHistoryStates.set(target, historyState);
                 }
+
+                // Handle Ctrl+C to clear input
+                if ((e.ctrlKey || e.metaKey) && e.key === "c") {
+                  e.preventDefault();
+                  props.onDraftChange("");
+                  historyState.isActive = false;
+                  historyState.index = -1;
+                  return;
+                }
+
+                // Handle arrow key navigation in history mode
+                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                  const userMessages = getLastUserMessages();
+
+                  if (
+                    !historyState.isActive &&
+                    e.key === "ArrowUp" &&
+                    target.selectionStart === 0 &&
+                    target.value === ""
+                  ) {
+                    // Enter history mode
+                    if (userMessages.length > 0) {
+                      e.preventDefault();
+                      historyState.isActive = true;
+                      historyState.index = 0;
+                      historyState.originalDraft = target.value;
+                      historyState.userMessages = userMessages;
+
+                      props.onDraftChange(userMessages[0]);
+                      return;
+                    }
+                  }
+
+                  if (historyState.isActive) {
+                    e.preventDefault();
+
+                    if (e.key === "ArrowUp") {
+                      historyState.index = Math.min(
+                        historyState.index + 1,
+                        historyState.userMessages.length - 1,
+                      );
+                    } else if (e.key === "ArrowDown") {
+                      if (historyState.index > 0) {
+                        historyState.index -= 1;
+                      } else {
+                        // Exit history mode and return to original draft
+                        historyState.isActive = false;
+                        historyState.index = -1;
+                        props.onDraftChange(historyState.originalDraft);
+                        return;
+                      }
+                    }
+
+                    props.onDraftChange(historyState.userMessages[historyState.index]);
+                    return;
+                  }
+                }
+
+                // Exit history mode on any other key and return to normal editing
+                if (historyState.isActive && e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+                  historyState.isActive = false;
+                  historyState.index = -1;
+                  // Let the normal key handling continue
+                }
+
                 if (e.key !== "Enter") {
                   return;
                 }
