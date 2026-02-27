@@ -17,6 +17,7 @@ import {
   shouldComputeCommandAuthorized,
 } from "../../auto-reply/command-detection.js";
 import { shouldHandleTextCommands } from "../../auto-reply/commands-registry.js";
+import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import {
   formatAgentEnvelope,
   formatInboundEnvelope,
@@ -34,7 +35,10 @@ import {
   matchesMentionWithExplicit,
 } from "../../auto-reply/reply/mentions.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../../auto-reply/reply/provider-dispatcher.js";
-import { createReplyDispatcherWithTyping } from "../../auto-reply/reply/reply-dispatcher.js";
+import {
+  createReplyDispatcher,
+  createReplyDispatcherWithTyping,
+} from "../../auto-reply/reply/reply-dispatcher.js";
 import { removeAckReactionAfterReply, shouldAckReaction } from "../../channels/ack-reactions.js";
 import { resolveCommandAuthorizedFromAuthorizers } from "../../channels/command-gating.js";
 import { discordMessageActions } from "../../channels/plugins/actions/discord.js";
@@ -448,6 +452,12 @@ function createRuntimeLogging(): PluginRuntime["logging"] {
         warn: (message) => logger.warn(message),
         error: (message) => logger.error(message),
       };
+    },
+    agent: {
+      dispatch: {
+        createReplyDispatcher,
+        dispatchInboundMessage,
+      },
     },
   };
 }
